@@ -1,5 +1,4 @@
 
-
 #include <stdio.h>
 /*
  * FreeRTOS is used in this project to provide advanced real-time operating system capabilities
