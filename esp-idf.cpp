@@ -4,34 +4,41 @@
 #include "freertos/event_groups.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
-#include "nvs_flash.h"s
+#include "nvs_flash.h"
 #include "driver/i2c.h"
 #include "esp_log.h"
 #include "mqtt_client.h"
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
-#include "ssd1306.h" // Library for DM0006 display (assuming it's SSD1306 based)
+#include "ssd1306.h" // Library for DM0006 display 
 
-#define I2C_MASTER_SCL_IO           22      /*!< GPIO number used for I2C master clock */
-#define I2C_MASTER_SDA_IO           21      /*!< GPIO number used for I2C master data  */
-#define I2C_MASTER_NUM              I2C_NUM_0 /*!< I2C port number for master dev */
-#define I2C_MASTER_FREQ_HZ          100000  /*!< I2C master clock frequency */
-#define I2C_MASTER_TX_BUF_DISABLE   0       /*!< I2C master doesn't need buffer */
-#define I2C_MASTER_RX_BUF_DISABLE   0       /*!< I2C master doesn't need buffer */
+#define I2C_MASTER_SCL_IO           22      
+#define I2C_MASTER_SDA_IO           21       
+#define I2C_MASTER_NUM              I2C_NUM_0 
+#define I2C_MASTER_FREQ_HZ          100000  
+#define I2C_MASTER_TX_BUF_DISABLE   0        
+#define I2C_MASTER_RX_BUF_DISABLE   0      
 #define I2C_MASTER_TIMEOUT_MS       1000
 
-#define SHTC1_SENSOR_ADDR           0x70    /*!< SHTC1 I2C address */
-#define SHTC1_CMD_MEASURE           0x7CA2  /*!< Measurement command for SHTC1 */
+#define SHTC1_SENSOR_ADDR           0x70    // SHTC1 I2C address 
+#define SHTC1_CMD_MEASURE           0x7CA2  // Measurement command for SHTC1
 
-#define TEMP_THRESHOLD_HIGH         30.0    /*!< High temperature threshold */
-#define TEMP_THRESHOLD_LOW          20.0    /*!< Low temperature threshold */
-#define HUM_THRESHOLD_HIGH          60.0    /*!< High humidity threshold */
-#define HUM_THRESHOLD_LOW           30.0    /*!< Low humidity threshold */
+#define TEMP_THRESHOLD_HIGH         30.0    // High temperature threshold
+#define TEMP_THRESHOLD_LOW          20.0    // Low temperature threshold 
+#define HUM_THRESHOLD_HIGH          60.0    // High humidity threshold 
+#define HUM_THRESHOLD_LOW           30.0    // Low humidity threshold 
 
-#define MODE_BUTTON_GPIO    34
-#define OK_BUTTON_GPIO      35
-#define UP_BUTTON_GPIO      32
-#define DOWN_BUTTON_GPIO    33
+#define MODE_BUTTON_GPIO    36
+#define OK_BUTTON_GPIO      39
+#define UP_BUTTON_GPIO      34
+#define DOWN_BUTTON_GPIO    35
+
+
+#define SSD1306_SCL_GPIO     15
+#define SSD1306_SDA_GPIO     4  //16
+#define SSD1306_RST_GPIO     17
+#define SSD1306_DC_GPIO      18
+
 
 #define WIFI_SSID "Dialog_4G_905"
 #define WIFI_PASS "AmeeraRox123"
@@ -347,7 +354,7 @@ void app_main(void) {
     ssd1306_t dev;
     dev._address = 0x3C;
     dev._flip = true;
-    ssd1306_init(&dev, 128, 64);
+    ssd1306_init(&dev, 128, 64,SSD1306_SCL_GPIO, SSD1306_SDA_GPIO, SSD1306_RST_GPIO, SSD1306_DC_GPIO);
     ssd1306_clear_screen(&dev, false);
 
     uint16_t temperature, humidity;
