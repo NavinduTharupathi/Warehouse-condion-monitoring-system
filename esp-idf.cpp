@@ -1,4 +1,3 @@
-// udula balli
 
 #include <stdio.h>
 /*
