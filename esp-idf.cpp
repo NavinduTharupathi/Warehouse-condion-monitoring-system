@@ -1,4 +1,13 @@
+
+
 #include <stdio.h>
+/*
+ * FreeRTOS is used in this project to provide advanced real-time operating system capabilities
+ * that are not available in the standard Arduino environment. FreeRTOS offers several advantages
+ * over the basic Arduino setup, particularly for more complex applications that require efficient
+ * multitasking, scheduling, and resource management.
+ * inter task communication is also an advantage that we can gain by using RTOS
+*/
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
@@ -10,7 +19,7 @@
 #include "mqtt_client.h"
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
-#include "ssd1306.h" // Library for DM0006 display 
+#include "ssd1306.h" 
 
 #define I2C_MASTER_SCL_IO           22      
 #define I2C_MASTER_SDA_IO           21       
@@ -20,28 +29,35 @@
 #define I2C_MASTER_RX_BUF_DISABLE   0      
 #define I2C_MASTER_TIMEOUT_MS       1000
 
+// here were using 12c bus to communicate with the SHTC instead of using Adafruit_SHTC3 library in arduino. 
+// we are using a 7 bit address space and X70 is assigned to SHTC1 here while X30 is assigned to the display. 
 #define SHTC1_SENSOR_ADDR           0x70    // SHTC1 I2C address 
-#define SHTC1_CMD_MEASURE           0x7CA2  // Measurement command for SHTC1
+// This command is written on the i2c bus to send measurement command for SHTC1
+#define SHTC1_CMD_MEASURE           0x7CA2 
 
-#define TEMP_THRESHOLD_HIGH         30.0    // High temperature threshold
-#define TEMP_THRESHOLD_LOW          20.0    // Low temperature threshold 
-#define HUM_THRESHOLD_HIGH          60.0    // High humidity threshold 
-#define HUM_THRESHOLD_LOW           30.0    // Low humidity threshold 
+#define TEMP_THRESHOLD_HIGH         30.0  
+#define TEMP_THRESHOLD_LOW          20.0    
+#define HUM_THRESHOLD_HIGH          60.0   
+#define HUM_THRESHOLD_LOW           30.0    
 
-#define MODE_BUTTON_GPIO    36
-#define OK_BUTTON_GPIO      39
-#define UP_BUTTON_GPIO      34
-#define DOWN_BUTTON_GPIO    35
-
-
-#define SSD1306_SCL_GPIO     15
-#define SSD1306_SDA_GPIO     4  //16
-#define SSD1306_RST_GPIO     17
-#define SSD1306_DC_GPIO      18
+#define MODE_BUTTON    36
+#define OK_BUTTON      39
+#define UP_BUTTON      34
+#define DOWN_BUTTON    35
 
 
+#define SSD1306_SCL     15
+#define SSD1306_SDA     4  //16
+#define SSD1306_RST     17
+#define SSD1306_DC      18
+
+// We had to hard code the wifi ssid and the key. but this is not a good practice when it comes to industrial standards
+// Using a hosted network to put the wifi details is the correct method.
 #define WIFI_SSID "Dialog_4G_905"
 #define WIFI_PASS "AmeeraRox123"
+
+
+//WiFi Initialization and Event Handling
 
 static EventGroupHandle_t s_wifi_event_group;
 const int WIFI_CONNECTED_BIT = BIT0;
@@ -66,6 +82,8 @@ static const char *MQTT_TAG = "MQTT";
 
 static esp_mqtt_client_handle_t mqtt_client;
 
+
+// this approach to connect to wifi networks is a bit complicated but it gives more control over the processes.
 static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
@@ -79,6 +97,9 @@ static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
+
+//WiFi Initialization Function
+
 static void wifi_init(void)
 {
     s_wifi_event_group = xEventGroupCreate();
@@ -118,6 +139,7 @@ static void wifi_init(void)
 }
 
 
+//Display and Button Initialization
 
 void update_display(ssd1306_t *dev) {
     ssd1306_clear_screen(dev, false);
@@ -125,7 +147,9 @@ void update_display(ssd1306_t *dev) {
 
     switch (current_screen) {
         case MAIN_SCREEN:
+            //snprintf function is used to format the string into a buffer that goes to the display.
             snprintf(buffer, sizeof(buffer), "Temp: %.2f C", temp_threshold_high);
+            
             ssd1306_draw_string(dev, 0, 0, buffer, 16, false);
             snprintf(buffer, sizeof(buffer), "Hum: %.2f %%", hum_threshold_high);
             ssd1306_draw_string(dev, 0, 16, buffer, 16, false);
@@ -159,25 +183,27 @@ void update_display(ssd1306_t *dev) {
 
 
 void handle_buttons(ssd1306_t *dev) {
-    if (gpio_get_level(MODE_BUTTON_GPIO) == 1) {
-        vTaskDelay(100 / portTICK_PERIOD_MS); // debounce
-        if (gpio_get_level(MODE_BUTTON_GPIO) == 1) {
+    if (gpio_get_level(MODE_BUTTON) == 1) {
+        // this is used to delay the task's execution and prevent other tasks form running. 
+        // portTICK_PERIOD_MS is  is a macro provided by FreeRTOS that defines the duration of one tick period in milliseconds. 
+        vTaskDelay(100 / portTICK_PERIOD_MS); 
+        if (gpio_get_level(MODE_BUTTON) == 1) {
             current_screen = (current_screen + 1) % 6;
             update_display(dev);
         }
-    } else if (gpio_get_level(OK_BUTTON_GPIO) == 1) {
-        vTaskDelay(100 / portTICK_PERIOD_MS); // debounce
-        if (gpio_get_level(OK_BUTTON_GPIO) == 1) {
-            // Logic for OK button
+    } else if (gpio_get_level(OK_BUTTON) == 1) {
+        vTaskDelay(100 / portTICK_PERIOD_MS); 
+        if (gpio_get_level(OK_BUTTON) == 1) {
+         
             if (current_screen != MAIN_SCREEN) {
                 current_screen = MAIN_SCREEN;
                 update_display(dev);
             }
         }
-    } else if (gpio_get_level(UP_BUTTON_GPIO) == 1) {
-        vTaskDelay(100 / portTICK_PERIOD_MS); // debounce
-        if (gpio_get_level(UP_BUTTON_GPIO) == 1) {
-            // Logic for Up button
+    } else if (gpio_get_level(UP_BUTTON) == 1) {
+        vTaskDelay(100 / portTICK_PERIOD_MS); 
+        if (gpio_get_level(UP_BUTTON) == 1) {
+           
             switch (current_screen) {
                 case SET_TEMP_THRESHOLD_HIGH:
                     temp_threshold_high += 0.5;
@@ -196,9 +222,9 @@ void handle_buttons(ssd1306_t *dev) {
             }
             update_display(dev);
         }
-    } else if (gpio_get_level(DOWN_BUTTON_GPIO) == 1) {
+    } else if (gpio_get_level(DOWN_BUTTON) == 1) {
         vTaskDelay(100 / portTICK_PERIOD_MS); // debounce
-        if (gpio_get_level(DOWN_BUTTON_GPIO) == 1) {
+        if (gpio_get_level(DOWN_BUTTON) == 1) {
             // Logic for Down button
             switch (current_screen) {
                 case SET_TEMP_THRESHOLD_HIGH:
@@ -221,22 +247,23 @@ void handle_buttons(ssd1306_t *dev) {
     }
 }
 
-
+// button initialization
 static void button_init(void)
 {
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_POSEDGE;
     io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = (1ULL << MODE_BUTTON_GPIO) | (1ULL << OK_BUTTON_GPIO) | (1ULL << UP_BUTTON_GPIO) | (1ULL << DOWN_BUTTON_GPIO);
+    io_conf.pin_bit_mask = (1ULL << MODE_BUTTON) | (1ULL << OK_BUTTON) | (1ULL << UP_BUTTON) | (1ULL << DOWN_BUTTON);
     io_conf.pull_down_en = 0;
     io_conf.pull_up_en = 1;
     gpio_config(&io_conf);
 }
 
 
-/**
- * @brief i2c master initialization
- */
+
+ //i2c master initialization
+ 
+
 static esp_err_t i2c_master_init(void)
 {
     i2c_config_t conf = {
@@ -253,6 +280,8 @@ static esp_err_t i2c_master_init(void)
     }
     return i2c_driver_install(I2C_MASTER_NUM, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 }
+
+//SHTC1 Sensor Communication
 
 static esp_err_t shtc1_read(uint16_t *temperature, uint16_t *humidity)
 {
@@ -275,15 +304,14 @@ static esp_err_t shtc1_read(uint16_t *temperature, uint16_t *humidity)
     }
 
     // Convert the data
+    // here, since the bus size is 8bit, we have used 2 uint8 variables and then concatenated them to a 16 bit integer below. 
     *temperature = (data[0] << 8) | data[1];
     *humidity = (data[3] << 8) | data[4];
 
     return ESP_OK;
 }
 
-/**
- * @brief MQTT event handler
- */
+//MQTT event handler
 static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 {
     switch (event->event_id) {
@@ -311,10 +339,12 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
     return ESP_OK;
 }
 
+//MQTT Client Initialization
+
 static void mqtt_app_start(void)
 {
     const esp_mqtt_client_config_t mqtt_cfg = {
-        .uri = "mqtt://mqtt_server_uri", // Replace with your MQTT server URI
+        .uri = "mqtt://mqtt_server_uri",
     };
 
     mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
@@ -322,16 +352,16 @@ static void mqtt_app_start(void)
     esp_mqtt_client_start(mqtt_client);
 }
 
+//Main Application Loop
+
 void app_main(void) {
-        // Initialize NVS
+ 
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
       ESP_ERROR_CHECK(nvs_flash_erase());
       ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-
-    // Initialize Wi-Fi
     wifi_init();
 
     // Wait for Wi-Fi connection
@@ -354,7 +384,7 @@ void app_main(void) {
     ssd1306_t dev;
     dev._address = 0x3C;
     dev._flip = true;
-    ssd1306_init(&dev, 128, 64,SSD1306_SCL_GPIO, SSD1306_SDA_GPIO, SSD1306_RST_GPIO, SSD1306_DC_GPIO);
+    ssd1306_init(&dev, 128, 64,SSD1306_SCL, SSD1306_SDA, SSD1306_RST, SSD1306_DC);
     ssd1306_clear_screen(&dev, false);
 
     uint16_t temperature, humidity;
